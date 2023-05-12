@@ -12,42 +12,41 @@ import (
 const indexFile = "index.html"
 
 var (
-	port = flag.Int("port", 1234, "port number")
-	path = flag.String("path", "spa", "path to SPA folder")
+	port   = flag.Int("p", 3000, "port number")
+	folder = flag.String("f", "web", "path to folder")
 )
 
-type handler struct {
-	path string
-}
-
-func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func handle(rw http.ResponseWriter, r *http.Request) {
 	path, err := filepath.Abs(r.URL.Path)
 	if err != nil {
-		log.Printf("failed to parse path %s: %v", r.URL.Path, err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	path = filepath.Join(h.path, path)
+	path = filepath.Join(*folder, path)
 
 	_, err = os.Stat(path)
 	if os.IsNotExist(err) {
-		log.Printf("path %s does not exist", path)
-		http.ServeFile(w, r, filepath.Join(h.path, indexFile))
+		http.ServeFile(rw, r, filepath.Join(*folder, indexFile))
 		return
 	}
 	if err != nil {
-		log.Printf("failed to get file info for path %s: %v", path, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	http.FileServer(http.Dir(h.path)).ServeHTTP(w, r)
+	http.FileServer(http.Dir(*folder)).ServeHTTP(rw, r)
 }
 
 func main() {
-	http.Handle("/", handler{path: *path})
+	mux := http.NewServeMux()
 
-	log.Printf("serving %s on port %d", *path, *port)
-	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*port), nil))
+	// Liveness and readiness probes
+	mux.HandleFunc("/live", func(rw http.ResponseWriter, _ *http.Request) { rw.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("/ready", func(rw http.ResponseWriter, _ *http.Request) { rw.WriteHeader(http.StatusOK) })
+
+	mux.HandleFunc("/", handle)
+
+	log.Printf("serving %s on port %d", *folder, *port)
+	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*port), mux))
 }
