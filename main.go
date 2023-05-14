@@ -12,7 +12,7 @@ import (
 const indexFile = "index.html"
 
 var (
-	port   = flag.Int("p", 3000, "port number")
+	port   = flag.Int("p", 8080, "port number")
 	folder = flag.String("f", "web", "path to folder")
 )
 
